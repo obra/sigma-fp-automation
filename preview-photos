@@ -1,0 +1,52 @@
+import os
+import subprocess
+import tkinter as tk
+from PIL import Image, ImageTk
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
+
+class DngHandler(FileSystemEventHandler):
+    def __init__(self, window, image_label, directory):
+        self.directory = directory
+        self.window = window
+        self.image_label = image_label
+
+    def on_created(self, event):
+        if event.is_directory:
+            return
+        if event.src_path.lower().endswith('.dng'):
+            self.convert_and_display_image(event.src_path)
+
+    def convert_and_display_image(self, dng_path):
+        jpg_path = "/tmp/latest.jpg"
+        # Use sips to convert the .dng to .jpg
+        subprocess.run(['sips', '-s', 'format', 'jpeg', dng_path, '--out', jpg_path], check=True)
+        self.display_image(jpg_path)
+    def display_image(self, path):
+        image = Image.open(path)
+        image.thumbnail((800, 600), Image.Resampling.LANCZOS)  # Updated to use Image.Resampling.LANCZOS
+        photo = ImageTk.PhotoImage(image)
+        self.image_label.config(image=photo)
+        self.image_label.image = photo  # Keep a reference!
+        self.window.update_idletasks()
+
+def setup_window(directory):
+    window = tk.Tk()
+    window.title("Latest .DNG Viewer")
+    window.geometry('800x600')
+
+    image_label = tk.Label(window)
+    image_label.pack()
+
+    event_handler = DngHandler(window, image_label, directory)
+    observer = Observer()
+    observer.schedule(event_handler, directory, recursive=False)
+    observer.start()
+
+    window.mainloop()
+    observer.stop()
+    observer.join()
+
+if __name__ == "__main__":
+    directory_to_watch = "."  # Update this to your directory path
+    setup_window(directory_to_watch)
